@@ -2,7 +2,10 @@
 title: "Pract5"
 author: "EMD-Marc, Jorge, Alejandro"
 date: "May 2025"
-output: word_document
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
 ---
 
 ## 1. One dimensional Partial Dependence Plot
