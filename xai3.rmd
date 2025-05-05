@@ -128,3 +128,68 @@ ggplot(grid, aes(x = temp, y = hum, fill = cnt_pred)) +
 
 
 ```
+
+
+## 3.- PDP to explain the price of a house.
+
+*EXERCISE:*
+Apply the previous concepts to predict the price of a house from the database kc_house_data.csv. In this case, use again a random forest approximation for the prediction based on the features bedrooms, bathrooms, sqft_living, sqft_lot, floors and yr_built. 
+
+
+Use the partial dependence plot to visualize the relationships the model learned.
+
+*BE CAREFUL:* due to the size, extract a set of random samples from the BBDD before generating the data for the Partial Dependency Plot. 
+
+*QUESTION:*
+Analyse the influence of bedrooms, bathrooms, sqft_living and floors on the predicted price.
+
+```{r}
+# Cargar librerías necesarias
+library(randomForest)
+library(ggplot2)
+library(dplyr)
+
+# 1. Cargar y preparar datos
+kc_data <- read.csv("data/kc_house_data.csv")
+
+# Submuestreo aleatorio por tamaño
+set.seed(42)
+kc_sample <- kc_data %>%
+  select(price, bedrooms, bathrooms, sqft_living, sqft_lot, floors, yr_built) %>%
+  sample_n(500)  # ajustar según memoria
+
+# 2. Entrenar modelo Random Forest
+rf_model <- randomForest(price ~ ., data = kc_sample, ntree = 300)
+
+# 3. Función PDP manual con rug plot
+pdp_manual <- function(varname, data, model, grid.res = 100) {
+  var_seq <- seq(min(data[[varname]]), max(data[[varname]]), length.out = grid.res)
+  pdp_data <- data.frame(matrix(nrow = grid.res, ncol = ncol(data) - 1))
+  colnames(pdp_data) <- setdiff(names(data), "price")
+  
+  for (v in colnames(pdp_data)) {
+    pdp_data[[v]] <- if (v == varname) var_seq else mean(data[[v]])
+  }
+  
+  preds <- predict(model, newdata = pdp_data)
+  pdp_df <- data.frame(x = var_seq, y = preds)
+  
+  ggplot(pdp_df, aes(x = x, y = y)) +
+    geom_line(color = "darkgreen", size = 1) +
+    geom_rug(data = data, aes_string(x = varname), inherit.aes = FALSE, sides = "b", alpha = 0.5) +
+    labs(x = varname, y = "Predicted price", 
+         title = paste("PDP for", varname)) +
+    theme_minimal()
+}
+
+# 4. Generar y mostrar PDPs
+p1 <- pdp_manual("bedrooms", kc_sample, rf_model)
+p2 <- pdp_manual("bathrooms", kc_sample, rf_model)
+p3 <- pdp_manual("sqft_living", kc_sample, rf_model)
+p4 <- pdp_manual("floors", kc_sample, rf_model)
+
+print(p1)
+print(p2)
+print(p3)
+print(p4)
+```
