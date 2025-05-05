@@ -15,8 +15,6 @@ Apply PDP to the regression example of predicting bike rentals. Fit a random for
 *QUESTION:*
 Analyse the influence of days since 2011, temperature, humidity and wind speed on the predicted bike counts.
 
-
-
 ```{r}
 # Librerías necesarias
 library(randomForest)
@@ -24,7 +22,7 @@ library(ggplot2)
 library(dplyr)
 
 # Cargar datos
-bike_data <- read.csv("day.csv")
+bike_data <- read.csv("data/day.csv")
 
 # Variables relevantes
 bike_data_model <- bike_data %>%
@@ -73,6 +71,60 @@ print(p2)
 print(p3)
 print(p4)
 
+
+
+```
+
+## 2.- Bidimensional Partial Dependency Plot
+
+*EXERCISE:*
+Generate a 2D Partial Dependency Plot with humidity and temperature to predict the number of bikes rented depending on those parameters.
+
+*BE CAREFUL:* due to the size, extract a set of random samples from the BBDD before generating the data for the Partial Dependency Plot. 
+
+Show the density distribution of both input features with the 2D plot as shown in the class slides. 
+
+*TIP:* Use geom_tile() to generate the 2D plot. Set width and height to avoid holes. 
+
+*QUESTION:*
+Interpret the results.
+
+
+```{r, echo=FALSE}
+library(randomForest)
+library(ggplot2)
+library(dplyr)
+
+# 1. Cargar y submuestrear datos
+bike_data <- read.csv("data/day.csv")
+
+set.seed(42)
+bike_sample <- bike_data %>%
+  select(cnt, temp, hum, instant, windspeed) %>%
+  sample_n(200)  # submuestreo para evitar sobrecarga de cálculo
+
+# 2. Ajustar modelo
+rf_model <- randomForest(cnt ~ temp + hum + instant + windspeed, data = bike_sample, ntree = 300)
+
+# 3. Crear grid de valores de temp y hum
+temp_seq <- seq(min(bike_sample$temp), max(bike_sample$temp), length.out = 50)
+hum_seq <- seq(min(bike_sample$hum), max(bike_sample$hum), length.out = 50)
+grid <- expand.grid(temp = temp_seq, hum = hum_seq)
+
+# 4. Mantener otras variables constantes (media)
+grid$instant <- mean(bike_sample$instant)
+grid$windspeed <- mean(bike_sample$windspeed)
+
+# 5. Predecir
+grid$cnt_pred <- predict(rf_model, newdata = grid)
+
+# 6. Graficar PDP 2D con geom_tile()
+ggplot(grid, aes(x = temp, y = hum, fill = cnt_pred)) +
+  geom_tile(width = 0.01, height = 0.01) +
+  scale_fill_viridis_c(option = "C") +
+  labs(title = "2D Partial Dependence Plot: temp vs hum",
+       x = "Temperatura (normalizada)", y = "Humedad", fill = "Predicción cnt") +
+  theme_minimal()
 
 
 ```
