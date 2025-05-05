@@ -1,0 +1,78 @@
+---
+title: "Pract5"
+author: "EMD-Marc, Jorge, Alejandro"
+date: "May 2025"
+output: word_document
+---
+
+## 1. One dimensional Partial Dependence Plot
+
+The partial dependence plot shows the marginal effect of a feature on the predicted outcome of a previously fit model. 
+ 
+*EXERCISE:*
+Apply PDP to the regression example of predicting bike rentals. Fit a random forest approximation for the prediction of bike rentals (cnt). Use the partial dependence plot to visualize the relationships the model learned. Use the slides shown in class as model.  
+
+*QUESTION:*
+Analyse the influence of days since 2011, temperature, humidity and wind speed on the predicted bike counts.
+
+
+
+```{r}
+# Librerías necesarias
+library(randomForest)
+library(ggplot2)
+library(dplyr)
+
+# Cargar datos
+bike_data <- read.csv("day.csv")
+
+# Variables relevantes
+bike_data_model <- bike_data %>%
+  select(cnt, instant, temp, hum, windspeed)
+
+# Entrenar modelo Random Forest
+set.seed(123)
+rf_model <- randomForest(cnt ~ ., data = bike_data_model, ntree = 300)
+
+# PDP manual para una variable con rug lines
+pdp_manual <- function(varname, data, model, grid.res = 100) {
+  # Secuencia de valores para la variable objetivo
+  var_seq <- seq(min(data[[varname]]), max(data[[varname]]), length.out = grid.res)
+  
+  # Crear nuevo data frame replicando valores promedio y cambiando solo la variable
+  pdp_data <- data.frame(matrix(nrow = grid.res, ncol = ncol(data) - 1))
+  colnames(pdp_data) <- setdiff(names(data), "cnt")
+  
+  for (v in colnames(pdp_data)) {
+    pdp_data[[v]] <- if (v == varname) var_seq else mean(data[[v]])
+  }
+  
+  # Predecir
+  preds <- predict(model, newdata = pdp_data)
+  pdp_df <- data.frame(x = var_seq, y = preds)
+  
+  # Devolver plot ggplot con rug lines
+  ggplot(pdp_df, aes(x = x, y = y)) +
+    geom_line(color = "steelblue", size = 1) +
+    geom_rug(data = data, aes_string(x = varname), inherit.aes = FALSE, 
+             sides = "b", alpha = 0.4, length = unit(0.05, "npc")) +
+    labs(x = varname, y = "Predicted count", 
+         title = paste("PDP for", varname)) +
+    theme_minimal()
+}
+
+# Generar los PDPs
+p1 <- pdp_manual("instant", bike_data_model, rf_model)
+p2 <- pdp_manual("temp", bike_data_model, rf_model)
+p3 <- pdp_manual("hum", bike_data_model, rf_model)
+p4 <- pdp_manual("windspeed", bike_data_model, rf_model)
+
+# Mostrar
+print(p1)
+print(p2)
+print(p3)
+print(p4)
+
+
+
+```
