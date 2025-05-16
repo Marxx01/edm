@@ -3,9 +3,9 @@ title: "Pract5"
 author: "EMD-Marc, Jorge, Alejandro"
 date: "May 2025"
 output:
-  pdf_document: default
   html_document:
     df_print: paged
+  pdf_document: default
 ---
 
 ## 1. One dimensional Partial Dependence Plot
@@ -18,7 +18,7 @@ Apply PDP to the regression example of predicting bike rentals. Fit a random for
 *QUESTION:*
 Analyse the influence of days since 2011, temperature, humidity and wind speed on the predicted bike counts.
 
-```{r}
+```{r first}
 # Librerías necesarias
 library(randomForest)
 library(ggplot2)
@@ -93,10 +93,11 @@ Show the density distribution of both input features with the 2D plot as shown i
 Interpret the results.
 
 
-```{r, echo=FALSE}
+```{r second, echo=FALSE}
 library(randomForest)
 library(ggplot2)
 library(dplyr)
+library(randomForest)
 
 # 1. Cargar y submuestrear datos
 bike_data <- read.csv("data/day.csv")
@@ -104,30 +105,35 @@ bike_data <- read.csv("data/day.csv")
 set.seed(42)
 bike_sample <- bike_data %>%
   select(cnt, temp, hum, instant, windspeed) %>%
-  sample_n(200)  # submuestreo para evitar sobrecarga de cálculo
+  sample_n(200)
 
 # 2. Ajustar modelo
 rf_model <- randomForest(cnt ~ temp + hum + instant + windspeed, data = bike_sample, ntree = 300)
 
-# 3. Crear grid de valores de temp y hum
+# 3. Crear grid de valores
 temp_seq <- seq(min(bike_sample$temp), max(bike_sample$temp), length.out = 50)
 hum_seq <- seq(min(bike_sample$hum), max(bike_sample$hum), length.out = 50)
 grid <- expand.grid(temp = temp_seq, hum = hum_seq)
 
-# 4. Mantener otras variables constantes (media)
+# 4. Rellenar valores constantes
 grid$instant <- mean(bike_sample$instant)
 grid$windspeed <- mean(bike_sample$windspeed)
 
 # 5. Predecir
 grid$cnt_pred <- predict(rf_model, newdata = grid)
 
-# 6. Graficar PDP 2D con geom_tile()
+# 6. Graficar PDP 2D con densidad (rug plots)
 ggplot(grid, aes(x = temp, y = hum, fill = cnt_pred)) +
   geom_tile(width = 0.01, height = 0.01) +
+  geom_rug(data = bike_sample, aes(x = temp), sides = "b",
+           alpha = 0.4, color = "black", inherit.aes = FALSE) +  # ← aquí
+  geom_rug(data = bike_sample, aes(y = hum), sides = "l",
+           alpha = 0.4, color = "black", inherit.aes = FALSE) +  # ← y aquí
   scale_fill_viridis_c(option = "C") +
   labs(title = "2D Partial Dependence Plot: temp vs hum",
-       x = "Temperatura (normalizada)", y = "Humedad", fill = "Predicción cnt") +
+       x = "Temperature (normalized)", y = "Humidity", fill = " cnt prediction") +
   theme_minimal()
+
 
 
 ```
@@ -146,7 +152,7 @@ Use the partial dependence plot to visualize the relationships the model learned
 *QUESTION:*
 Analyse the influence of bedrooms, bathrooms, sqft_living and floors on the predicted price.
 
-```{r}
+```{r third}
 # Cargar librerías necesarias
 library(randomForest)
 library(ggplot2)
@@ -155,34 +161,52 @@ library(dplyr)
 # 1. Cargar y preparar datos
 kc_data <- read.csv("data/kc_house_data.csv")
 
-# Submuestreo aleatorio por tamaño
+# Submuestreo aleatorio
 set.seed(42)
 kc_sample <- kc_data %>%
   select(price, bedrooms, bathrooms, sqft_living, sqft_lot, floors, yr_built) %>%
-  sample_n(500)  # ajustar según memoria
+  sample_n(500)
 
 # 2. Entrenar modelo Random Forest
 rf_model <- randomForest(price ~ ., data = kc_sample, ntree = 300)
 
-# 3. Función PDP manual con rug plot
+# 3. Función PDP mejorada
 pdp_manual <- function(varname, data, model, grid.res = 100) {
-  var_seq <- seq(min(data[[varname]]), max(data[[varname]]), length.out = grid.res)
-  pdp_data <- data.frame(matrix(nrow = grid.res, ncol = ncol(data) - 1))
+  # Detectar si la variable es discreta
+  unique_vals <- sort(unique(data[[varname]]))
+  if (length(unique_vals) < 20) {
+    var_seq <- unique_vals  # usar valores reales
+    step_plot <- TRUE
+  } else {
+    var_seq <- seq(min(data[[varname]]), max(data[[varname]]), length.out = grid.res)
+    step_plot <- FALSE
+  }
+
+  # Preparar grid de predicción
+  pdp_data <- data.frame(matrix(nrow = length(var_seq), ncol = ncol(data) - 1))
   colnames(pdp_data) <- setdiff(names(data), "price")
-  
+
   for (v in colnames(pdp_data)) {
     pdp_data[[v]] <- if (v == varname) var_seq else mean(data[[v]])
   }
-  
+
+  # Predecir
   preds <- predict(model, newdata = pdp_data)
   pdp_df <- data.frame(x = var_seq, y = preds)
-  
-  ggplot(pdp_df, aes(x = x, y = y)) +
-    geom_line(color = "darkgreen", size = 1) +
+
+  # Elegir tipo de gráfico según variable
+  p <- ggplot(pdp_df, aes(x = x, y = y)) +
+    labs(x = varname, y = "Predicted price", title = paste("PDP for", varname)) +
     geom_rug(data = data, aes_string(x = varname), inherit.aes = FALSE, sides = "b", alpha = 0.5) +
-    labs(x = varname, y = "Predicted price", 
-         title = paste("PDP for", varname)) +
     theme_minimal()
+
+  if (step_plot) {
+    p <- p + geom_step(color = "darkgreen", size = 1)
+  } else {
+    p <- p + geom_line(color = "darkgreen", size = 1)
+  }
+
+  return(p)
 }
 
 # 4. Generar y mostrar PDPs
@@ -195,4 +219,5 @@ print(p1)
 print(p2)
 print(p3)
 print(p4)
+
 ```
